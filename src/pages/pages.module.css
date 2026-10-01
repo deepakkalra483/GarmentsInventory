@@ -1,0 +1,103 @@
+/* Login */
+.loginWrap { min-height: 100vh; display: flex; flex-direction: column; justify-content: center; padding: 24px 16px 40px; background: var(--bg); }
+.loginInner { max-width: 400px; width: 100%; margin: 0 auto; }
+.loginLogo { text-align: center; margin-bottom: 28px; }
+.logoBox { width: 62px; height: 62px; border-radius: 18px; background: var(--accent-bg); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; }
+.logoTitle { font-size: 24px; font-weight: 800; }
+.logoSub { font-size: 13px; color: var(--text2); margin-top: 4px; }
+.loginCard { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 22px 18px; }
+.loginCardTitle { font-size: 17px; font-weight: 700; margin-bottom: 16px; }
+
+/* Grid */
+.metricGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+.frow { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+/* Pill row */
+.pillRow { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+
+/* Chip row */
+.chipRow { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 12px; }
+.chipRow::-webkit-scrollbar { display: none; }
+
+/* Bill actions */
+.billActions { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); }
+.billActionBtn { flex: 1; padding: 7px 0; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); font-size: 12px; font-weight: 500; cursor: pointer; color: var(--text2); display: flex; align-items: center; justify-content: center; gap: 4px; transition: background .15s; }
+.billActionBtn:hover { background: var(--border); }
+.billActionDanger { border-color: var(--danger-border); background: var(--danger-bg); color: var(--danger-text); }
+.billActionDanger:hover { background: #fde2e2; }
+.billActionSuccess { border-color: var(--success-border); background: var(--success-bg); color: var(--success-text); }
+.billActionSuccess:hover { background: #dcfce7; }
+
+/* Bill hero */
+.billHero { padding: 24px 16px; border-radius: 14px; margin-bottom: 12px; text-align: center; }
+.billHeroBlue { background: linear-gradient(135deg, var(--accent-bg), #dbeafe); border: 1px solid #BFDBFE; color: var(--accent-text); }
+
+/* Item rows in forms */
+.itemColHeads { display: flex; gap: 6px; padding: 0 0 6px; font-size: 10px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .4px; }
+.itemRow { display: flex; align-items: center; gap: 6px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; margin-bottom: 6px; }
+.itemSelect { flex: 2; min-width: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 6px 7px; font-size: 12px; color: var(--text); font-family: inherit; outline: none; }
+.itemSelect:focus { border-color: var(--accent); }
+.itemQty  { width: 44px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 6px; font-size: 12px; text-align: center; font-family: inherit; outline: none; }
+.itemRate { width: 60px; background: var(--surface); border: 1px solid var(--border); border-radius: 7px; padding: 6px; font-size: 12px; text-align: right; font-family: inherit; outline: none; }
+.itemAmt  { font-size: 12px; font-weight: 600; min-width: 60px; text-align: right; color: var(--accent); flex-shrink: 0; }
+.itemDel  { width: 28px; height: 28px; border-radius: 7px; border: none; background: var(--danger-bg); color: var(--danger); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.addItemBtn { width: 100%; padding: 9px; border: 1.5px dashed var(--border2); border-radius: 10px; background: none; font-size: 13px; font-weight: 500; color: var(--accent); cursor: pointer; margin-top: 4px; display: flex; align-items: center; justify-content: center; gap: 5px; }
+
+/* Summary rows */
+.sRow { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text2); padding: 5px 0; }
+.sRowTotal { font-size: 15px; font-weight: 700; color: var(--text); border-top: 1px solid var(--border); margin-top: 8px; padding-top: 10px; }
+.inlineInput { width: 70px; padding: 4px 8px; font-size: 13px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface2); color: var(--text); font-family: inherit; outline: none; text-align: right; }
+
+/* Payment chips */
+.payChips { display: flex; gap: 8px; flex-wrap: wrap; }
+.payChip { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); font-size: 13px; font-weight: 500; color: var(--text2); cursor: pointer; transition: all .15s; }
+.payChipActive { background: var(--accent-bg); border-color: #93C5FD; color: var(--accent-text); }
+
+/* Reason chips */
+.reasonChips { display: flex; gap: 6px; flex-wrap: wrap; }
+.reasonChip { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); font-size: 12px; font-weight: 500; color: var(--text2); cursor: pointer; transition: all .15s; }
+.reasonChipActive { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
+
+/* Refund modes */
+.refundModes { display: flex; gap: 8px; }
+.refundMode { flex: 1; padding: 8px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); font-size: 12px; font-weight: 500; color: var(--text2); cursor: pointer; text-align: center; transition: all .15s; }
+.refundModeActive { background: var(--success-bg); border-color: var(--success-border); color: var(--success-text); }
+
+/* Small select */
+.smallSelect { width: 52px; padding: 4px 6px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font-family: inherit; outline: none; }
+.fullSelect { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; font-size: 14px; color: var(--text); outline: none; font-family: inherit; }
+
+/* Receipt / confirmation */
+.receiptCard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.receiptHead { text-align: center; padding: 22px; }
+.receiptSuccess { background: var(--success-bg); color: var(--success-text); }
+.receiptDanger  { background: var(--danger-bg);  color: var(--danger-text); }
+.receiptTitle { font-size: 18px; font-weight: 700; margin-top: 8px; }
+.receiptSub   { font-size: 12px; margin-top: 3px; opacity: .75; }
+.rRow   { display: flex; justify-content: space-between; font-size: 13px; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.rRow:last-of-type { border-bottom: none; }
+.rLabel { color: var(--text2); }
+.rVal   { font-weight: 600; }
+.rItems { background: var(--surface2); border-radius: 9px; padding: 9px 11px; margin: 10px 0; }
+.rItem  { display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); padding: 3px 0; }
+.rTotal { display: flex; justify-content: space-between; font-size: 17px; font-weight: 800; padding-top: 12px; border-top: 1px solid var(--border2); margin-top: 6px; }
+
+/* Qty buttons */
+.qtyBtn { width: 28px; height: 28px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface2); cursor: pointer; font-size: 17px; font-weight: 600; display: flex; align-items: center; justify-content: center; line-height: 1; color: var(--text); transition: background .15s; }
+.qtyBtn:hover { background: var(--border); }
+
+/* Admin */
+.userRow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.userRow:last-child { border-bottom: none; }
+.permBtn { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); font-size: 12px; font-weight: 500; cursor: pointer; color: var(--accent); transition: background .15s; }
+.permBtn:hover { background: var(--accent-bg); }
+.permRow { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+.permRow:last-child { border-bottom: none; }
+.reportRow { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .15s; }
+.reportRow:last-child { border-bottom: none; }
+.reportRow:hover { background: var(--surface2); border-radius: 8px; padding-left: 4px; }
+
+/* Size selector */
+.sizeGrid { display: flex; flex-wrap: wrap; gap: 8px; }
+.sizeBtn { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); font-size: 12px; font-weight: 500; color: var(--text2); cursor: pointer; transition: all .15s; }
+.sizeBtnActive { background: var(--accent-bg); border-color: #93C5FD; color: var(--accent-text); font-weight: 600; }
