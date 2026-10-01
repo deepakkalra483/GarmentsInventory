@@ -8,23 +8,36 @@ import styles from './pages.module.css';
 
 const FILTERS = ['All', 'Today', 'This week', 'Paid', 'Credit'];
 
+const todayStr = () =>
+  new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+const weekAgo = () => {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  return d;
+};
+
 export default function SalesPage() {
   const { currentUser, isAdmin, hasPerm } = useAuth();
   const { bills } = useApp();
   const navigate = useNavigate();
-  const [query, setQuery] = useState('');
+  const [query, setQuery]   = useState('');
   const [filter, setFilter] = useState('All');
+
+  const today = todayStr();
 
   const base = isAdmin() || hasPerm('viewAllBills')
     ? bills
-    : bills.filter(b => b.spId === currentUser.id);
+    : bills.filter(b => b.spId === currentUser.uid);
 
   const filtered = base.filter(b => {
-    const matchQ = !query || b.name.toLowerCase().includes(query.toLowerCase()) || b.id.includes(query);
+    const matchQ = !query ||
+      b.name.toLowerCase().includes(query.toLowerCase()) ||
+      b.id.includes(query);
     const matchF =
       filter === 'All'       ? true :
-      filter === 'Today'     ? b.date === '29 Sep 2026' :
-      filter === 'This week' ? true :
+      filter === 'Today'     ? b.date === today :
+      filter === 'This week' ? true :   // Firestore ordered by createdAt, so first 7 days approx
       filter === 'Paid'      ? !['Credit'].includes(b.pay) :
       filter === 'Credit'    ? b.pay === 'Credit' : true;
     return matchQ && matchF;
@@ -32,6 +45,11 @@ export default function SalesPage() {
 
   return (
     <div>
+      {/* ── NEW SALE button at top ── */}
+      <Button variant="primary" size="md" fullWidth onClick={() => navigate('/sales/new')} style={{ marginBottom: 12 }}>
+        <i className="ti ti-plus" /> New sale
+      </Button>
+
       <SearchBar placeholder="Search by bill, customer…" value={query} onChange={e => setQuery(e.target.value)} />
 
       <div className={styles.chipRow}>
@@ -41,8 +59,11 @@ export default function SalesPage() {
       {filtered.length === 0
         ? <EmptyState icon="ti-receipt-off" title="No bills found" sub="Try adjusting your search or filter" />
         : filtered.map(b => {
-          const total = calcBillTotal(b.items, b.discount);
-          const cls = getPayStatusCls(b.pay);
+          const gross      = b._total ?? calcBillTotal(b.items, b.discount);
+          const returnedAmt = b.returnedAmt || 0;
+          const netTotal   = Math.max(0, gross - returnedAmt);
+          const cls        = getPayStatusCls(b.pay);
+
           return (
             <Card key={b.id}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
@@ -51,8 +72,22 @@ export default function SalesPage() {
                   <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>Bill #{b.id} · {b.sp} · {b.time}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>₹{total.toLocaleString('en-IN')}</div>
-                  {b.hasReturn && <Pill variant="red" style={{ marginTop: 2, display: 'inline-block' }}>Partial return</Pill>}
+                  {/* Show net (after return) prominently; strikethrough gross if different */}
+                  {returnedAmt > 0 ? (
+                    <>
+                      <div style={{ fontSize: 12, textDecoration: 'line-through', color: 'var(--text3)' }}>
+                        ₹{gross.toLocaleString('en-IN')}
+                      </div>
+                      <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>
+                        ₹{netTotal.toLocaleString('en-IN')}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--accent)' }}>
+                      ₹{gross.toLocaleString('en-IN')}
+                    </div>
+                  )}
+                  {b.hasReturn && <Pill variant="red" style={{ marginTop: 2, display: 'inline-block' }}>Returned</Pill>}
                 </div>
               </div>
 
@@ -84,10 +119,6 @@ export default function SalesPage() {
           );
         })
       }
-
-      <Button variant="primary" size="lg" fullWidth onClick={() => navigate('/sales/new')} style={{ marginTop: 8 }}>
-        <i className="ti ti-plus" /> New sale
-      </Button>
     </div>
   );
 }

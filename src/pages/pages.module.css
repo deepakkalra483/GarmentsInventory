@@ -101,3 +101,15 @@
 .sizeGrid { display: flex; flex-wrap: wrap; gap: 8px; }
 .sizeBtn { padding: 6px 14px; border-radius: 20px; border: 1px solid var(--border); background: var(--surface2); font-size: 12px; font-weight: 500; color: var(--text2); cursor: pointer; transition: all .15s; }
 .sizeBtnActive { background: var(--accent-bg); border-color: #93C5FD; color: var(--accent-text); font-weight: 600; }
+
+/* Generic full-width text/number input (used in custom inline forms) */
+.fullInput {
+  width: 100%; background: var(--surface2); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 10px 12px; font-size: 14px;
+  color: var(--text); font-family: inherit; outline: none; box-sizing: border-box;
+}
+.fullInput:focus { border-color: var(--accent); }
+
+/* Spinner animation */
+@keyframes spin { to { transform: rotate(360deg); } }
+

@@ -1,23 +1,30 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, USERS } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { MetricCard, Section, Card, Pill, ProgressBar, Avatar, Button } from '../components/ui';
 import { calcBillTotal, TEAM_TARGETS, getPayStatusCls, ATTENDANCE } from '../data/staticData';
 import styles from './pages.module.css';
 
 export default function DashboardPage() {
-  const { currentUser, isAdmin } = useAuth();
-  const { bills, returns, stock } = useApp();
+  const { currentUser, users, isAdmin } = useAuth();
+  const { bills, stock } = useApp();
   const navigate = useNavigate();
 
-  const todayBills = bills.filter(b => b.date === '29 Sep 2026');
-  const myBills = isAdmin() ? todayBills : todayBills.filter(b => b.spId === currentUser.id);
-  const todaySales = todayBills.reduce((s, b) => s + calcBillTotal(b.items, b.discount), 0);
-  const todayReturns = returns.filter(r => r.date === '29 Sep 2026').length;
-  const lowStock = stock.filter(s => s.qty <= s.lowAlert);
+  const today = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const todayBills   = bills.filter(b => b.date === today);
+  const myBills      = isAdmin() ? todayBills : todayBills.filter(b => b.spId === currentUser.uid);
 
-  const myStats = TEAM_TARGETS[currentUser.id];
+  // Net sales = sum of bill totals minus any returned amounts
+  const todayGross   = todayBills.reduce((s, b) => s + (b._total ?? calcBillTotal(b.items, b.discount)), 0);
+  const todayRefunds = todayBills.reduce((s, b) => s + (b.returnedAmt || 0), 0);
+  const todaySales   = Math.max(0, todayGross - todayRefunds);
+
+  // Count of bills with at least one return today
+  const todayReturns = todayBills.filter(b => b.hasReturn).length;
+  const lowStock     = stock.filter(s => s.qty <= s.lowAlert);
+
+  const myStats = TEAM_TARGETS[currentUser.uid] || TEAM_TARGETS[currentUser.id];
 
   return (
     <div>
@@ -50,12 +57,13 @@ export default function DashboardPage() {
 
       {isAdmin() && (
         <Section title="Team performance today">
-          {Object.entries(TEAM_TARGETS).map(([uid, t]) => {
-            const u = USERS[uid];
-            const pct = Math.round((t.today / t.target) * 100);
+          {users.filter(u => u.role !== 'admin').map(u => {
+            const t = TEAM_TARGETS[u.uid] || TEAM_TARGETS[u.id] || { today: 0, target: 25000, bills: 0 };
+            const pct = t.target > 0 ? Math.round((t.today / t.target) * 100) : 0;
+            const initials = u.initials || u.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '??';
             return (
-              <div key={uid} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <Avatar initials={u.initials} bg={u.bg} fg={u.fg} size={36} />
+              <div key={u.uid} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <Avatar initials={initials} bg="#EFF6FF" fg="#1D4ED8" size={36} />
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, marginBottom: 3 }}>
                     <span style={{ fontWeight: 600 }}>{u.name}</span>

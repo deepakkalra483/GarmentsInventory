@@ -1,25 +1,32 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, USERS } from '../context/AuthContext';
-import { Field, Input, Select, Button, Alert } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
+import { Field, Input, Button, Alert } from '../components/ui';
+import { auth } from '../firebase/firebase';
 import styles from './pages.module.css';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, seedAdminProfile } = useAuth();
   const navigate = useNavigate();
-  const [userId, setUserId] = useState('');
-  const [pin, setPin] = useState('');
-  const [errors, setErrors] = useState({});
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleLogin = () => {
-    const errs = {};
-    if (!userId) errs.user = 'Select your account';
-    else {
-      const result = login(userId, pin);
-      if (!result.success) errs.pin = result.error;
-      else { navigate('/'); return; }
+  const handleLogin = async () => {
+    if (!email.trim()) { setError('Please enter your email.'); return; }
+    if (!password) { setError('Please enter your password.'); return; }
+    setLoading(true);
+    setError('');
+    const result = await login(email.trim(), password);
+    if (result.success) {
+      // Seed admin profile on very first login if Firestore doc is missing
+      if (auth.currentUser) await seedAdminProfile(auth.currentUser);
+      navigate('/');
+    } else {
+      setError(result.error);
     }
-    setErrors(errs);
+    setLoading(false);
   };
 
   return (
@@ -36,40 +43,51 @@ export default function LoginPage() {
         <div className={styles.loginCard}>
           <div className={styles.loginCardTitle}>Sign in</div>
 
-          <Field label="Your account" error={errors.user}>
-            <Select value={userId} onChange={e => { setUserId(e.target.value); setErrors({}); }}>
-              <option value="">Select your name</option>
-              {Object.values(USERS).map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.name} — {u.role === 'admin' ? 'Admin / Owner' : 'Salesperson'}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          {error && (
+            <Alert variant="danger" icon="ti-alert-circle" style={{ marginBottom: 12 }}>
+              {error}
+            </Alert>
+          )}
 
-          <Field label="PIN" error={errors.pin}>
+          <Field label="Email">
             <Input
-              type="password"
-              placeholder="4-digit PIN"
-              maxLength={4}
-              inputMode="numeric"
-              value={pin}
-              onChange={e => { setPin(e.target.value); setErrors({}); }}
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={e => { setEmail(e.target.value); setError(''); }}
               onKeyDown={e => e.key === 'Enter' && handleLogin()}
+              autoComplete="email"
             />
           </Field>
 
-          <Button variant="primary" size="lg" fullWidth onClick={handleLogin}>
-            <i className="ti ti-login" /> Sign in
+          <Field label="Password">
+            <Input
+              type="password"
+              placeholder="Your password"
+              value={password}
+              onChange={e => { setPassword(e.target.value); setError(''); }}
+              onKeyDown={e => e.key === 'Enter' && handleLogin()}
+              autoComplete="current-password"
+            />
+          </Field>
+
+          <Button
+            variant="primary"
+            size="lg"
+            fullWidth
+            onClick={handleLogin}
+            disabled={loading}
+          >
+            {loading
+              ? <><i className="ti ti-loader-2" style={{ animation: 'spin 1s linear infinite' }} /> Signing in…</>
+              : <><i className="ti ti-login" /> Sign in</>
+            }
           </Button>
 
           <Alert variant="info" icon="ti-info-circle" style={{ marginTop: 14 }}>
             <div style={{ lineHeight: 1.7 }}>
-              <strong>Demo PINs:</strong><br />
-              Mani (Admin) → <strong>1234</strong>&nbsp;&nbsp;
-              Raju → <strong>1111</strong>&nbsp;&nbsp;
-              Sunita → <strong>2222</strong>&nbsp;&nbsp;
-              Deepak → <strong>3333</strong>
+              Use your registered email and password to sign in.
+              <br />Contact admin if you forgot your password.
             </div>
           </Alert>
         </div>

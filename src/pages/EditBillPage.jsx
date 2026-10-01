@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth, USERS } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 import { Section, Field, Input, Select, Button, Alert } from '../components/ui';
 import { PAYMENT_MODES, calcBillTotal } from '../data/staticData';
@@ -9,6 +9,7 @@ import styles from './pages.module.css';
 export default function EditBillPage() {
   const { id } = useParams();
   const { getBill, updateBill } = useApp();
+  const { users } = useAuth();
   const navigate = useNavigate();
   const bill = getBill(id);
 
@@ -26,9 +27,9 @@ export default function EditBillPage() {
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, qty: Math.max(1, it.qty + delta) } : it));
   };
 
-  const handleSave = () => {
-    const spUser = USERS[sp];
-    updateBill(id, {
+  const handleSave = async () => {
+    const spUser = users.find(u => u.uid === sp);
+    await updateBill(id, {
       name, spId: sp, sp: spUser?.name || bill.sp, pay,
       items, discount: Number(discount),
       st: pay === 'Credit' ? 'Credit' : `Paid · ${pay}`,
@@ -47,7 +48,7 @@ export default function EditBillPage() {
         <div className={styles.frow}>
           <Field label="Salesperson">
             <Select value={sp} onChange={e => setSp(e.target.value)}>
-              {Object.values(USERS).filter(u => u.id !== 'admin').map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              {users.filter(u => u.role !== 'admin').map(u => <option key={u.uid} value={u.uid}>{u.name}</option>)}
             </Select>
           </Field>
           <Field label="Payment">

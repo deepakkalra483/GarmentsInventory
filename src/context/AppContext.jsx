@@ -1,126 +1,231 @@
-import React, { createContext, useContext, useState, useRef } from 'react';
-import { INITIAL_BILLS, INITIAL_RETURNS, INITIAL_PURCHASES, INITIAL_STOCK } from '../data/staticData';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import {
+  collection, doc, getDocs, addDoc, updateDoc, setDoc,
+  runTransaction, serverTimestamp, query, orderBy, Timestamp,
+} from 'firebase/firestore';
+import { db } from '../firebase/firebase';
 
 const AppContext = createContext(null);
 
-// ── fuzzy name matcher ────────────────────────────────────────────────────────
-// Links an item name from a sale/purchase/return to a stock record.
-// e.g. "Men's T-Shirt (M)" → stock "Men's T-Shirt"
-//      "Cotton Sarees"      → stock "Cotton Saree"
+// ── helpers ────────────────────────────────────────────────────────────────────
+
+// Convert Firestore Timestamp → readable date string
+const tsToStr = (ts) => {
+  if (!ts) return '';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+// Today as a readable date string
+const todayStr = () =>
+  new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+
+// Fuzzy match an item name to a stock document
 function findStockMatch(stockList, itemName) {
   const needle = (itemName || '').toLowerCase().trim();
   if (!needle) return null;
-  // 1. Exact match
   let hit = stockList.find(s => s.name.toLowerCase() === needle);
   if (hit) return hit;
-  // 2. Stock name is a substring of the item name (size suffix case)
   hit = stockList.find(s => needle.includes(s.name.toLowerCase()));
   if (hit) return hit;
-  // 3. Item name is a substring of the stock name
   hit = stockList.find(s => s.name.toLowerCase().includes(needle));
   if (hit) return hit;
-  // 4. Plural / normalised fallback
   const norm = needle.replace(/s$/, '');
   hit = stockList.find(s => s.name.toLowerCase().replace(/s$/, '').includes(norm));
   return hit || null;
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+
 export function AppProvider({ children }) {
-  const [bills, setBills]         = useState(INITIAL_BILLS);
-  const [returns, setReturns]     = useState(INITIAL_RETURNS);
-  const [purchases, setPurchases] = useState(INITIAL_PURCHASES);
-  const [stock, setStock]         = useState(INITIAL_STOCK);
+  const [bills, setBills]         = useState([]);
+  const [returns, setReturns]     = useState([]);
+  const [purchases, setPurchases] = useState([]);
+  const [stock, setStock]         = useState([]);
+  const [dataLoading, setDataLoading] = useState(true);
 
-  // Keep a ref so we can read current stock inside callbacks without stale closure
-  const stockRef = useRef(stock);
-  const setStockSynced = (updater) => {
-    setStock(prev => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
-      stockRef.current = next;
-      return next;
-    });
+  // Ref for reading current stock inside transactions without stale closure
+  const stockRef = useRef([]);
+
+  // ── Load all data from Firestore on mount ────────────────────────────────
+  useEffect(() => {
+    loadAll();
+  }, []);
+
+  const loadAll = async () => {
+    setDataLoading(true);
+    try {
+      const [billsSnap, returnsSnap, purchasesSnap, stockSnap] = await Promise.all([
+        getDocs(query(collection(db, 'sales'),     orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'returns'),   orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'purchases'), orderBy('createdAt', 'desc'))),
+        getDocs(collection(db, 'stock')),
+      ]);
+
+      const mapDoc = (d) => ({ ...d.data(), id: d.id });
+
+      const newStock = stockSnap.docs.map(mapDoc);
+      setBills(billsSnap.docs.map(mapDoc));
+      setReturns(returnsSnap.docs.map(mapDoc));
+      setPurchases(purchasesSnap.docs.map(mapDoc));
+      setStock(newStock);
+      stockRef.current = newStock;
+    } catch (e) {
+      console.error('Firestore loadAll error:', e);
+    } finally {
+      setDataLoading(false);
+    }
   };
 
-  // ── internal stock adjuster ───────────────────────────────────────────────
-  // delta > 0 → add to stock  (purchase / return)
-  // delta < 0 → remove from stock (sale)
-  const adjustStockByName = (itemName, delta, overrideStockId) => {
-    setStockSynced(prev => {
-      const match = overrideStockId
-        ? prev.find(s => s.id === overrideStockId)
-        : findStockMatch(prev, itemName);
-      if (!match) return prev;
-      return prev.map(s =>
-        s.id === match.id
-          ? { ...s, qty: Math.max(0, s.qty + delta) }
-          : s
-      );
-    });
+  // ── Internal: update stock qty via Firestore transaction ─────────────────
+  // items: [{ name, qty, stockId? }]
+  // delta: +1 (purchase/return) or -1 (sale)
+  const adjustStockTransaction = async (items, delta) => {
+    const currentStock = stockRef.current;
+    for (const it of items) {
+      const match = it.stockId
+        ? currentStock.find(s => s.id === it.stockId)
+        : findStockMatch(currentStock, it.name);
+      if (!match) continue;
+      const stockDocRef = doc(db, 'stock', match.id);
+      await runTransaction(db, async (txn) => {
+        const snap = await txn.get(stockDocRef);
+        if (!snap.exists()) return;
+        const newQty = Math.max(0, (snap.data().qty || 0) + delta * (it.qty || 1));
+        txn.update(stockDocRef, { qty: newQty });
+      });
+      // Update local state
+      setStock(prev => {
+        const updated = prev.map(s =>
+          s.id === match.id
+            ? { ...s, qty: Math.max(0, s.qty + delta * (it.qty || 1)) }
+            : s
+        );
+        stockRef.current = updated;
+        return updated;
+      });
+    }
   };
 
-  // ── Bills (Sales) ─────────────────────────────────────────────────────────
-  const addBill = (bill) => {
-    const id = String(Date.now());
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    setBills(prev => [{ ...bill, id, date: dateStr, hasReturn: false }, ...prev]);
-
-    // ✅ Decrease stock for each sold item
-    (bill.items || []).forEach(it => {
-      adjustStockByName(it.name, -(it.qty || 1), it.stockId);
-    });
-
-    return id;
+  // ── Bills (Sales) ────────────────────────────────────────────────────────
+  const addBill = async (bill) => {
+    const now   = serverTimestamp();
+    const total = (bill.items || []).reduce((s, i) => s + i.price * i.qty, 0) - (bill.discount || 0);
+    const data  = { ...bill, date: todayStr(), hasReturn: false, returnedAmt: 0, _total: Math.max(0, total), createdAt: now };
+    const ref   = await addDoc(collection(db, 'sales'), data);
+    setBills(prev => [{ ...data, id: ref.id, createdAt: new Date() }, ...prev]);
+    // ✅ Decrease stock
+    await adjustStockTransaction(bill.items || [], -1);
+    return ref.id;
   };
 
-  const updateBill = (id, data) =>
-    setBills(prev => prev.map(b => b.id === id ? { ...b, ...data } : b));
+  const updateBill = async (id, patch) => {
+    await updateDoc(doc(db, 'sales', id), patch);
+    setBills(prev => prev.map(b => b.id === id ? { ...b, ...patch } : b));
+  };
 
   const getBill = (id) => bills.find(b => b.id === id);
 
-  // ── Returns ───────────────────────────────────────────────────────────────
-  const addReturn = (ret) => {
-    const id = 'R' + String(Date.now()).slice(-4);
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    setReturns(prev => [{ ...ret, id, date: dateStr }, ...prev]);
-    updateBill(ret.billId, { hasReturn: true });
+  // ── Returns ──────────────────────────────────────────────────────────────
+  const addReturn = async (ret) => {
+    const now  = serverTimestamp();
+    const data = { ...ret, date: todayStr(), createdAt: now };
+    const ref  = await addDoc(collection(db, 'returns'), data);
+    setReturns(prev => [{ ...data, id: ref.id, createdAt: new Date() }, ...prev]);
 
-    // ✅ Restore stock for each returned item
-    (ret.items || []).forEach(it => {
-      adjustStockByName(it.name, +(it.qty || 1), it.stockId);
+    // Update bill: mark hasReturn=true and accumulate returnedAmt
+    const parentBill = bills.find(b => b.id === ret.billId);
+    const newReturnedAmt = (parentBill?.returnedAmt || 0) + (ret.refundAmt || 0);
+    await updateBill(ret.billId, { hasReturn: true, returnedAmt: newReturnedAmt });
+
+    // ✅ Restore stock
+    await adjustStockTransaction(ret.items || [], +1);
+    return ref.id;
+  };
+
+  // ── Purchases ────────────────────────────────────────────────────────────
+  const addPurchase = async (purchase) => {
+    const now  = serverTimestamp();
+    const data = { ...purchase, date: todayStr(), createdAt: now };
+    const ref  = await addDoc(collection(db, 'purchases'), data);
+    setPurchases(prev => [{ ...data, id: ref.id, createdAt: new Date() }, ...prev]);
+
+    // ✅ For each item: create new stock doc OR update qty+price on existing
+    for (const it of (purchase.items || [])) {
+      if (it.isNew || !it.stockId) {
+        // Create a new stock document
+        const stockData = {
+          name:      it.name,
+          category:  it.category  || 'Other',
+          gender:    it.gender    || 'Unisex',
+          fabric:    it.fabric    || '',
+          sku:       it.sku       || `${(it.category || 'X').slice(0,1)}${String(Date.now()).slice(-3)}`,
+          sizes:     it.sizes     || 'Free size',
+          qty:       Number(it.qty),
+          lowAlert:  Number(it.lowAlert) || 10,
+          buyPrice:  Number(it.rate)     || 0,
+          sellPrice: Number(it.sellPrice)|| 0,
+          vendor:    purchase.vendor || '',
+          createdAt: now,
+        };
+        const sRef = await addDoc(collection(db, 'stock'), stockData);
+        const newItem = { ...stockData, id: sRef.id };
+        setStock(prev => {
+          const updated = [newItem, ...prev];
+          stockRef.current = updated;
+          return updated;
+        });
+      } else {
+        // Add to existing stock qty and optionally update prices
+        const stockDocRef = doc(db, 'stock', it.stockId);
+        await runTransaction(db, async (txn) => {
+          const snap = await txn.get(stockDocRef);
+          if (!snap.exists()) return;
+          const patch = { qty: (snap.data().qty || 0) + Number(it.qty) };
+          if (it.rate)      patch.buyPrice  = Number(it.rate);
+          if (it.sellPrice) patch.sellPrice = Number(it.sellPrice);
+          txn.update(stockDocRef, patch);
+        });
+        setStock(prev => {
+          const updated = prev.map(s =>
+            s.id === it.stockId
+              ? { ...s, qty: s.qty + Number(it.qty), buyPrice: Number(it.rate) || s.buyPrice, sellPrice: Number(it.sellPrice) || s.sellPrice }
+              : s
+          );
+          stockRef.current = updated;
+          return updated;
+        });
+      }
+    }
+    return ref.id;
+  };
+
+  const updatePurchase = async (id, patch) => {
+    await updateDoc(doc(db, 'purchases', id), patch);
+    setPurchases(prev => prev.map(p => p.id === id ? { ...p, ...patch } : p));
+  };
+
+  // ── Stock (manual management) ────────────────────────────────────────────
+  const addStockItem = async (item) => {
+    const data = { ...item, createdAt: serverTimestamp() };
+    const ref  = await addDoc(collection(db, 'stock'), data);
+    const newItem = { ...data, id: ref.id };
+    setStock(prev => {
+      const updated = [newItem, ...prev];
+      stockRef.current = updated;
+      return updated;
     });
-
-    return id;
+    return ref.id;
   };
 
-  // ── Purchases ─────────────────────────────────────────────────────────────
-  const addPurchase = (purchase) => {
-    const id = 'P' + String(Date.now()).slice(-6);
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
-    setPurchases(prev => [{ ...purchase, id, date: dateStr }, ...prev]);
-
-    // ✅ Increase stock for each purchased item
-    (purchase.items || []).forEach(it => {
-      adjustStockByName(it.name, +(it.qty || 1), it.stockId);
+  const updateStockItem = async (id, patch) => {
+    await updateDoc(doc(db, 'stock', id), patch);
+    setStock(prev => {
+      const updated = prev.map(s => s.id === id ? { ...s, ...patch } : s);
+      stockRef.current = updated;
+      return updated;
     });
-
-    return id;
   };
-
-  const updatePurchase = (id, data) =>
-    setPurchases(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
-
-  // ── Stock (manual entry) ──────────────────────────────────────────────────
-  const addStockItem = (item) => {
-    const id = 'S' + String(Date.now()).slice(-6);
-    setStockSynced(prev => [{ ...item, id }, ...prev]);
-    return id;
-  };
-
-  const updateStockItem = (id, data) =>
-    setStockSynced(prev => prev.map(s => s.id === id ? { ...s, ...data } : s));
 
   return (
     <AppContext.Provider value={{
@@ -128,6 +233,7 @@ export function AppProvider({ children }) {
       returns, addReturn,
       purchases, addPurchase, updatePurchase,
       stock, addStockItem, updateStockItem,
+      dataLoading, loadAll,
     }}>
       {children}
     </AppContext.Provider>
@@ -135,3 +241,5 @@ export function AppProvider({ children }) {
 }
 
 export const useApp = () => useContext(AppContext);
+
+

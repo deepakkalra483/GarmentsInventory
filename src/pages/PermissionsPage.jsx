@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth, USERS } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { Section, Avatar, Toggle, Button, Alert } from '../components/ui';
 import styles from './pages.module.css';
 
@@ -15,34 +15,44 @@ const ALL_PERMS = [
 ];
 
 export default function PermissionsPage() {
-  const { userId } = useParams();
-  const { getUserPerms, updatePerms } = useAuth();
+  const { userId } = useParams();                    // userId is now a Firebase UID
+  const { users, getUserPerms, updatePerms } = useAuth();
   const navigate = useNavigate();
-  const user = USERS[userId];
-  const [localPerms, setLocalPerms] = useState(getUserPerms(userId));
-  const [saved, setSaved] = useState(false);
 
-  if (!user) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--text2)' }}>User not found.</div>;
+  const user = users.find(u => u.uid === userId);
+  const [localPerms, setLocalPerms] = useState(getUserPerms(userId));
+  const [saving, setSaving]         = useState(false);
+  const [saved, setSaved]           = useState(false);
+
+  if (!user) return (
+    <div style={{ padding: 24, textAlign: 'center', color: 'var(--text2)' }}>
+      User not found.
+    </div>
+  );
 
   const toggle = (key) => setLocalPerms(prev => ({ ...prev, [key]: !prev[key] }));
 
-  const handleSave = () => {
-    updatePerms(userId, localPerms);
+  const handleSave = async () => {
+    setSaving(true);
+    await updatePerms(userId, localPerms);
+    setSaving(false);
     setSaved(true);
     setTimeout(() => navigate('/admin'), 800);
   };
 
+  const initials = user.initials || user.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '??';
+
   return (
     <div>
       <Alert variant="info" icon="ti-info-circle">
-        Changes apply the next time {user.name.split(' ')[0]} signs in.
+        Changes apply immediately — {user.name.split(' ')[0]} will see updated access on next page load.
       </Alert>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, marginBottom: 12 }}>
-        <Avatar initials={user.initials} bg={user.bg} fg={user.fg} size={46} />
+        <Avatar initials={initials} bg="#EFF6FF" fg="#1D4ED8" size={46} />
         <div>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{user.name}</div>
-          <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>Salesperson · Mani Garments</div>
+          <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{user.email} · Mani Garments</div>
         </div>
       </div>
 
@@ -60,7 +70,9 @@ export default function PermissionsPage() {
 
       {saved
         ? <Button variant="success" size="lg" fullWidth disabled><i className="ti ti-check" /> Saved!</Button>
-        : <Button variant="primary" size="lg" fullWidth onClick={handleSave}><i className="ti ti-check" /> Save permissions</Button>
+        : <Button variant="primary" size="lg" fullWidth onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving…' : <><i className="ti ti-check" /> Save permissions</>}
+          </Button>
       }
       <Button variant="secondary" size="md" fullWidth onClick={() => navigate('/admin')} style={{ marginTop: 8 }}>Cancel</Button>
       <div style={{ height: 8 }} />
