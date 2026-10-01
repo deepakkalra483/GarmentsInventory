@@ -36,6 +36,13 @@ export default function StockPage() {
         </div>
       )}
 
+      <div style={{ background: 'var(--accent-bg)', border: '1px solid var(--accent-border, var(--border))', borderRadius: 12, padding: '10px 14px', marginBottom: 12, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <i className="ti ti-refresh" style={{ fontSize: 16, color: 'var(--accent)', flexShrink: 0 }} />
+        <span style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>
+          Stock is auto-managed — updates automatically on every sale, purchase &amp; return.
+        </span>
+      </div>
+
       <SearchBar placeholder="Search item, SKU…" value={query} onChange={e => setQuery(e.target.value)} />
 
       <div className={styles.chipRow}>

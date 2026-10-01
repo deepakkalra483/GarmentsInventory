@@ -5,38 +5,59 @@ import { Section, Field, Input, Select, Button, Alert } from '../components/ui';
 import { VENDORS, PURCHASE_STATUSES, calcPurchaseTotal } from '../data/staticData';
 import styles from './pages.module.css';
 
-const PUR_ITEMS_DEFAULT = [{ name: "Men's T-Shirt", qty: 50, rate: 150 }];
-
 export default function NewPurchasePage() {
-  const { addPurchase } = useApp();
+  const { addPurchase, stock } = useApp();
   const navigate = useNavigate();
 
-  const [vendor, setVendor]   = useState('');
-  const [invNo, setInvNo]     = useState('');
-  const [date, setDate]       = useState('29 Sep 2026');
-  const [delivery, setDelivery] = useState('');
-  const [items, setItems]     = useState([...PUR_ITEMS_DEFAULT]);
-  const [gst, setGst]         = useState(5);
-  const [freight, setFreight] = useState(0);
+  const defaultItem = () => ({
+    stockId: stock[0]?.id || '',
+    name: stock[0]?.name || '',
+    qty: 50,
+    rate: stock[0]?.buyPrice || 0,
+  });
+
+  const [vendor, setVendor]       = useState('');
+  const [invNo, setInvNo]         = useState('');
+  const [date, setDate]           = useState(
+    new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+  );
+  const [delivery, setDelivery]   = useState('');
+  const [items, setItems]         = useState([defaultItem()]);
+  const [gst, setGst]             = useState(5);
+  const [freight, setFreight]     = useState(0);
   const [payStatus, setPayStatus] = useState('Paid full');
-  const [paidAmt, setPaidAmt] = useState('');
-  const [errors, setErrors]   = useState({});
-  const [done, setDone]       = useState(null);
+  const [paidAmt, setPaidAmt]     = useState('');
+  const [errors, setErrors]       = useState({});
+  const [done, setDone]           = useState(null);
 
   const sub   = items.reduce((s, i) => s + i.qty * i.rate, 0);
   const total = calcPurchaseTotal(items, gst, freight);
 
-  const addItem = () => setItems(prev => [...prev, { name: "Men's T-Shirt", qty: 10, rate: 150 }]);
-  const changeItem = (idx, patch) => setItems(prev => prev.map((it, i) => i === idx ? { ...it, ...patch } : it));
+  const addItem = () => setItems(prev => [...prev, defaultItem()]);
+  const changeItem = (idx, patch) =>
+    setItems(prev => prev.map((it, i) => i === idx ? { ...it, ...patch } : it));
   const removeItem = (idx) => setItems(prev => prev.filter((_, i) => i !== idx));
+
+  const handleStockSelect = (idx, stockId) => {
+    const s = stock.find(s => s.id === stockId);
+    if (s) changeItem(idx, { stockId: s.id, name: s.name, rate: s.buyPrice || 0 });
+    else   changeItem(idx, { stockId: '', name: '', rate: 0 });
+    setErrors(p => ({...p, items: ''}));
+  };
 
   const handleSave = () => {
     const errs = {};
     if (!vendor) errs.vendor = 'Select a vendor';
     if (!invNo)  errs.invNo  = 'Enter invoice number';
     if (items.length === 0) errs.items = 'Add at least one item';
+    if (items.some(it => !it.stockId)) errs.items = 'Select a stock item for each row';
     if (Object.keys(errs).length) { setErrors(errs); return; }
-    const id = addPurchase({ vendor, invoiceNo: invNo, date, delivery, items, gst: Number(gst), freight: Number(freight), payStatus, paidAmt: Number(paidAmt) || (payStatus === 'Paid full' ? total : 0) });
+    const id = addPurchase({
+      vendor, invoiceNo: invNo, date, delivery, items,
+      gst: Number(gst), freight: Number(freight),
+      payStatus,
+      paidAmt: Number(paidAmt) || (payStatus === 'Paid full' ? total : 0),
+    });
     setDone({ id, vendor, invNo, total, payStatus });
   };
 
@@ -46,7 +67,7 @@ export default function NewPurchasePage() {
         <div className={`${styles.receiptHead} ${styles.receiptSuccess}`}>
           <i className="ti ti-circle-check" style={{ fontSize: 40 }} />
           <div className={styles.receiptTitle}>Purchase saved!</div>
-          <div className={styles.receiptSub}>Invoice #{done.invNo} · 29 Sep 2026</div>
+          <div className={styles.receiptSub}>Invoice #{done.invNo} · {date}</div>
         </div>
         <div style={{ padding: 16 }}>
           {[['Vendor', done.vendor], ['Invoice', done.invNo], ['Status', done.payStatus]].map(([l, v]) => (
@@ -56,10 +77,13 @@ export default function NewPurchasePage() {
             {items.map((it, i) => <div key={i} className={styles.rItem}><span>{it.name} ×{it.qty}</span><span>₹{(it.qty * it.rate).toLocaleString('en-IN')}</span></div>)}
           </div>
           <div className={styles.rTotal}><span>Grand total</span><span style={{ color: 'var(--warning)' }}>₹{total.toLocaleString('en-IN')}</span></div>
+          <Alert variant="success" icon="ti-package" style={{ marginTop: 12 }}>
+            Stock updated automatically for {items.length} item{items.length > 1 ? 's' : ''}.
+          </Alert>
         </div>
         <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
           <Button variant="secondary" size="md" fullWidth onClick={() => navigate('/purchase')}><i className="ti ti-arrow-left" /> Purchase</Button>
-          <Button variant="primary" size="md" fullWidth onClick={() => { setDone(null); setVendor(''); setInvNo(''); setItems([...PUR_ITEMS_DEFAULT]); }}><i className="ti ti-plus" /> New</Button>
+          <Button variant="primary" size="md" fullWidth onClick={() => { setDone(null); setVendor(''); setInvNo(''); setItems([defaultItem()]); }}><i className="ti ti-plus" /> New</Button>
         </div>
       </div>
     </div>
@@ -83,16 +107,49 @@ export default function NewPurchasePage() {
       </Section>
 
       <Section title="Items purchased">
-        <div className={styles.itemColHeads}><span style={{ flex: 2 }}>Item</span><span style={{ width: 44 }}>Qty</span><span style={{ width: 60, textAlign: 'right' }}>Rate ₹</span><span style={{ minWidth: 60, textAlign: 'right' }}>Amt</span><span style={{ width: 28 }}></span></div>
-        {items.map((it, i) => (
-          <div key={i} className={styles.itemRow}>
-            <input className={styles.itemSelect} placeholder="Item name" value={it.name} onChange={e => changeItem(i, { name: e.target.value })} />
-            <input className={styles.itemQty} type="number" min="1" value={it.qty} onChange={e => changeItem(i, { qty: Math.max(1, parseInt(e.target.value) || 1) })} />
-            <input className={styles.itemRate} type="number" min="0" value={it.rate} onChange={e => changeItem(i, { rate: parseInt(e.target.value) || 0 })} />
-            <span className={styles.itemAmt}>₹{(it.qty * it.rate).toLocaleString('en-IN')}</span>
-            <button className={styles.itemDel} onClick={() => removeItem(i)} aria-label="Remove"><i className="ti ti-x" style={{ fontSize: 13 }} /></button>
-          </div>
-        ))}
+        <div style={{ fontSize: 11, color: 'var(--text3)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <i className="ti ti-info-circle" style={{ fontSize: 13 }} />
+          Stock quantities will be updated automatically when you save.
+        </div>
+        <div className={styles.itemColHeads}>
+          <span style={{ flex: 2 }}>Stock item</span>
+          <span style={{ width: 50 }}>Qty</span>
+          <span style={{ width: 64, textAlign: 'right' }}>Rate ₹</span>
+          <span style={{ minWidth: 60, textAlign: 'right' }}>Amt</span>
+          <span style={{ width: 28 }}></span>
+        </div>
+        {items.map((it, i) => {
+          const stockItem = stock.find(s => s.id === it.stockId);
+          return (
+            <div key={i} style={{ marginBottom: 10 }}>
+              <div className={styles.itemRow} style={{ flexWrap: 'wrap', gap: 6, alignItems: 'center' }}>
+                <select
+                  className={styles.itemSelect}
+                  value={it.stockId}
+                  onChange={e => handleStockSelect(i, e.target.value)}
+                  style={{ flex: 2, minWidth: 120 }}
+                >
+                  <option value="">— Select item —</option>
+                  {stock.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}  (stock: {s.qty})
+                    </option>
+                  ))}
+                </select>
+                <input className={styles.itemQty} type="number" min="1" value={it.qty} onChange={e => changeItem(i, { qty: Math.max(1, parseInt(e.target.value) || 1) })} style={{ width: 50 }} />
+                <input className={styles.itemRate} type="number" min="0" value={it.rate} onChange={e => changeItem(i, { rate: parseInt(e.target.value) || 0 })} style={{ width: 64 }} />
+                <span className={styles.itemAmt}>₹{(it.qty * it.rate).toLocaleString('en-IN')}</span>
+                <button className={styles.itemDel} onClick={() => removeItem(i)} aria-label="Remove"><i className="ti ti-x" style={{ fontSize: 13 }} /></button>
+              </div>
+              {stockItem && (
+                <div style={{ fontSize: 10, color: 'var(--text3)', marginTop: 2, paddingLeft: 2 }}>
+                  Current stock: <strong style={{ color: stockItem.qty <= stockItem.lowAlert ? 'var(--warning)' : 'var(--success)' }}>{stockItem.qty} pcs</strong>
+                  {' · '}After purchase: <strong style={{ color: 'var(--accent)' }}>{stockItem.qty + it.qty} pcs</strong>
+                </div>
+              )}
+            </div>
+          );
+        })}
         {errors.items && <div style={{ fontSize: 12, color: 'var(--danger-text)', marginTop: 4 }}>{errors.items}</div>}
         <button className={styles.addItemBtn} onClick={addItem}><i className="ti ti-plus" /> Add item</button>
       </Section>
@@ -116,7 +173,7 @@ export default function NewPurchasePage() {
         )}
       </Section>
 
-      <Button variant="primary" size="lg" fullWidth onClick={handleSave}><i className="ti ti-truck" /> Save purchase</Button>
+      <Button variant="primary" size="lg" fullWidth onClick={handleSave}><i className="ti ti-truck" /> Save purchase &amp; update stock</Button>
       <div style={{ height: 8 }} />
     </div>
   );

@@ -6,36 +6,61 @@ import { Section, Field, Input, Select, Button, Pill, Alert } from '../component
 import { CATALOGUE, PAYMENT_MODES, calcBillTotal } from '../data/staticData';
 import styles from './pages.module.css';
 
-function ItemRow({ item, index, onChange, onRemove }) {
+// Fuzzy match a catalogue item name to a stock record
+function findStock(stockList, itemName) {
+  const needle = (itemName || '').toLowerCase().trim();
+  let hit = stockList.find(s => s.name.toLowerCase() === needle);
+  if (hit) return hit;
+  hit = stockList.find(s => needle.includes(s.name.toLowerCase()));
+  if (hit) return hit;
+  hit = stockList.find(s => s.name.toLowerCase().includes(needle));
+  return hit || null;
+}
+
+function ItemRow({ item, index, onChange, onRemove, stockList }) {
   const sub = item.price * item.qty;
+  const stockItem = findStock(stockList, item.name);
+  const available = stockItem ? stockItem.qty : null;
+  const isOver = available !== null && item.qty > available;
   return (
-    <div className={styles.itemRow}>
-      <select
-        className={styles.itemSelect}
-        value={item.name}
-        onChange={e => {
-          const cat = CATALOGUE.find(c => c.name === e.target.value);
-          onChange(index, { name: e.target.value, price: cat?.sellPrice || 0 });
-        }}
-      >
-        {CATALOGUE.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-      </select>
-      <input
-        className={styles.itemQty}
-        type="number" min="1" value={item.qty}
-        onChange={e => onChange(index, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
-      />
-      <span className={styles.itemAmt}>₹{sub.toLocaleString('en-IN')}</span>
-      <button className={styles.itemDel} onClick={() => onRemove(index)} aria-label="Remove">
-        <i className="ti ti-x" style={{ fontSize: 13 }} />
-      </button>
+    <div style={{ marginBottom: 8 }}>
+      <div className={styles.itemRow}>
+        <select
+          className={styles.itemSelect}
+          value={item.name}
+          onChange={e => {
+            const cat = CATALOGUE.find(c => c.name === e.target.value);
+            onChange(index, { name: e.target.value, price: cat?.sellPrice || 0 });
+          }}
+        >
+          {CATALOGUE.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+        </select>
+        <input
+          className={styles.itemQty}
+          type="number" min="1" value={item.qty}
+          style={{ borderColor: isOver ? 'var(--danger)' : '' }}
+          onChange={e => onChange(index, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
+        />
+        <span className={styles.itemAmt}>₹{sub.toLocaleString('en-IN')}</span>
+        <button className={styles.itemDel} onClick={() => onRemove(index)} aria-label="Remove">
+          <i className="ti ti-x" style={{ fontSize: 13 }} />
+        </button>
+      </div>
+      {available !== null && (
+        <div style={{ fontSize: 10, color: isOver ? 'var(--danger-text)' : 'var(--text3)', marginTop: 2, paddingLeft: 2 }}>
+          {isOver
+            ? <><i className="ti ti-alert-circle" style={{ fontSize: 11 }} /> Only {available} in stock — reduce qty!  </>
+            : <>In stock: <strong style={{ color: 'var(--success)' }}>{available} pcs</strong></>
+          }
+        </div>
+      )}
     </div>
   );
 }
 
 export default function NewSalePage() {
   const { currentUser, isAdmin } = useAuth();
-  const { addBill } = useApp();
+  const { addBill, stock } = useApp();
   const navigate = useNavigate();
 
   const [cust, setCust]     = useState('');
@@ -90,7 +115,12 @@ export default function NewSalePage() {
           </div>
           <div className={styles.rTotal}><span>Total</span><span style={{ color: 'var(--accent)' }}>₹{saved.total.toLocaleString('en-IN')}</span></div>
         </div>
-        <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
+          <div style={{ padding: '0 16px 8px' }}>
+            <Alert variant="info" icon="ti-package">
+              Stock updated automatically for {saved.items.length} item{saved.items.length > 1 ? 's' : ''}.
+            </Alert>
+          </div>
+          <div style={{ display: 'flex', gap: 8, padding: '0 16px 16px' }}>
           <Button variant="secondary" size="md" fullWidth onClick={() => navigate('/sales')}><i className="ti ti-arrow-left" /> Sales</Button>
           <Button variant="primary" size="md" fullWidth onClick={() => { setSaved(null); setItems([{ name: CATALOGUE[0].name, qty: 1, price: CATALOGUE[0].sellPrice }]); setCust(''); setDisc(0); }}><i className="ti ti-plus" /> New sale</Button>
         </div>
@@ -115,7 +145,7 @@ export default function NewSalePage() {
 
       <Section title="Items sold">
         <div className={styles.itemColHeads}><span style={{ flex: 2 }}>Item</span><span style={{ width: 44 }}>Qty</span><span style={{ minWidth: 60, textAlign: 'right' }}>Amount</span><span style={{ width: 28 }}></span></div>
-        {items.map((it, i) => <ItemRow key={i} item={it} index={i} onChange={changeItem} onRemove={removeItem} />)}
+        {items.map((it, i) => <ItemRow key={i} item={it} index={i} onChange={changeItem} onRemove={removeItem} stockList={stock} />)}
         {errors.items && <div style={{ fontSize: 12, color: 'var(--danger-text)', marginTop: 4 }}>{errors.items}</div>}
         <button className={styles.addItemBtn} onClick={addItem}><i className="ti ti-plus" /> Add item</button>
       </Section>
