@@ -52,7 +52,7 @@ export default function PermissionsPage() {
         <Avatar initials={initials} bg="#EFF6FF" fg="#1D4ED8" size={46} />
         <div>
           <div style={{ fontSize: 16, fontWeight: 700 }}>{user.name}</div>
-          <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{user.email} · Mani Garments</div>
+          <div style={{ fontSize: 12, color: 'var(--text2)', marginTop: 2 }}>{user.email} · Fashion Palace</div>
         </div>
       </div>
 

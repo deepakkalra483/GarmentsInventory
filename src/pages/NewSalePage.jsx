@@ -10,16 +10,17 @@ import styles from './pages.module.css';
 function ItemRow({ item, index, onChange, onRemove, stock }) {
   const stockItem = stock.find(s => s.id === item.stockId) || null;
   const available = stockItem ? stockItem.qty : null;
-  const isOver    = available !== null && item.qty > available;
-  const sub       = item.price * item.qty;
+  const qtyNum = Number(item.qty) || 0;
+  const isOver = available !== null && qtyNum > available;
+  const sub = item.price * qtyNum;
 
   const handleStockChange = (stockId) => {
     const s = stock.find(x => x.id === stockId);
     onChange(index, {
       stockId,
-      name:  s?.name      || '',
+      name: s?.name || '',
       price: s?.sellPrice || 0,
-      qty:   1,
+      qty: '',  // blank so user types their own qty
     });
   };
 
@@ -40,23 +41,28 @@ function ItemRow({ item, index, onChange, onRemove, stock }) {
           ))}
         </select>
 
-        {/* Price editable */}
-        <input
-          className={styles.itemRate}
-          type="number" min="0"
-          value={item.price}
-          style={{ width: 64 }}
-          onChange={e => onChange(index, { price: Number(e.target.value) || 0 })}
-          title="Selling price"
-        />
+        {/* Price — editable so salesperson can adjust */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+          <input
+            className={styles.itemRate}
+            type="number" min="0"
+            value={item.price}
+            onChange={e => onChange(index, { price: Number(e.target.value) || 0 })}
+            title="Edit selling price"
+          />
+          {/* <span style={{ fontSize: 9, color: 'var(--accent-text)', fontWeight: 600, letterSpacing: '.3px', display: 'flex', alignItems: 'center', gap: 2 }}>
+            <i className="ti ti-pencil" style={{ fontSize: 9 }} /> edit
+          </span> */}
+        </div>
 
         {/* Qty */}
         <input
           className={styles.itemQty}
           type="number" min="1"
+          placeholder="Qty"
           value={item.qty}
           style={{ borderColor: isOver ? 'var(--danger)' : '' }}
-          onChange={e => onChange(index, { qty: Math.max(1, parseInt(e.target.value) || 1) })}
+          onChange={e => onChange(index, { qty: e.target.value })}
         />
 
         <span className={styles.itemAmt}>₹{sub.toLocaleString('en-IN')}</span>
@@ -84,53 +90,54 @@ export default function NewSalePage() {
 
   const firstStock = stock.find(s => s.qty > 0) || stock[0];
 
-  const [cust, setCust]   = useState('');
+  const [cust, setCust] = useState('');
   const [phone, setPhone] = useState('');
-  const [sp, setSp]       = useState(isAdmin() ? '' : currentUser.uid);
+  const [sp, setSp] = useState(isAdmin() ? '' : currentUser.uid);
   const [items, setItems] = useState([
     firstStock
-      ? { stockId: firstStock.id, name: firstStock.name, qty: 1, price: firstStock.sellPrice }
-      : { stockId: '', name: '', qty: 1, price: 0 },
+      ? { stockId: firstStock.id, name: firstStock.name, qty: '', price: firstStock.sellPrice }
+      : { stockId: '', name: '', qty: '', price: 0 },
   ]);
-  const [pay, setPay]         = useState('Cash');
-  const [discount, setDisc]   = useState(0);
-  const [errors, setErrors]   = useState({});
-  const [saved, setSaved]     = useState(null);
-  const [saving, setSaving]   = useState(false);
+  const [pay, setPay] = useState('Cash');
+  const [discount, setDisc] = useState(0);
+  const [errors, setErrors] = useState({});
+  const [saved, setSaved] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
-  const total    = calcBillTotal(items, discount);
+  const subtotal = items.reduce((s, i) => s + i.price * (Number(i.qty) || 0), 0);
+  const total = calcBillTotal(items.map(i => ({ ...i, qty: Number(i.qty) || 0 })), discount);
 
   const addItem = () => setItems(prev => [
     ...prev,
     firstStock
-      ? { stockId: firstStock.id, name: firstStock.name, qty: 1, price: firstStock.sellPrice }
-      : { stockId: '', name: '', qty: 1, price: 0 },
+      ? { stockId: firstStock.id, name: firstStock.name, qty: '', price: firstStock.sellPrice }
+      : { stockId: '', name: '', qty: '', price: 0 },
   ]);
   const changeItem = (idx, patch) => setItems(prev => prev.map((it, i) => i === idx ? { ...it, ...patch } : it));
-  const removeItem = (idx)        => setItems(prev => prev.filter((_, i) => i !== idx));
+  const removeItem = (idx) => setItems(prev => prev.filter((_, i) => i !== idx));
 
   const handleSave = async () => {
     const errs = {};
-    if (!sp)                                          errs.sp    = 'Select a salesperson';
-    if (items.length === 0)                           errs.items = 'Add at least one item';
-    if (items.some(it => !it.stockId))                errs.items = 'Select a stock item for each row';
+    if (!sp) errs.sp = 'Select a salesperson';
+    if (items.length === 0) errs.items = 'Add at least one item';
+    if (items.some(it => !it.stockId)) errs.items = 'Select a stock item for each row';
+    if (items.some(it => !(Number(it.qty) > 0))) errs.items = 'Enter quantity for each item';
     if (items.some(it => {
       const s = stock.find(x => x.id === it.stockId);
-      return s && it.qty > s.qty;
-    }))                                               errs.items = 'One or more items exceed available stock';
+      return s && Number(it.qty) > s.qty;
+    })) errs.items = 'One or more items exceed available stock';
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
     setSaving(true);
     const spUser = users.find(u => u.uid === sp) || currentUser;
     const id = await addBill({
-      name:  cust || 'Walk-in customer',
+      name: cust || 'Walk-in customer',
       phone,
-      sp:    spUser.name, spId: sp,
-      time:  new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      sp: spUser.name, spId: sp,
+      time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       pay,
-      items: items.map(it => ({ stockId: it.stockId, name: it.name, qty: it.qty, price: it.price })),
-      discount:    Number(discount),
+      items: items.map(it => ({ stockId: it.stockId, name: it.name, qty: Number(it.qty), price: it.price })),
+      discount: Number(discount),
       returnedAmt: 0,   // will be updated when returns happen
     });
     setSaving(false);
@@ -169,7 +176,7 @@ export default function NewSalePage() {
           <Button variant="secondary" size="md" fullWidth onClick={() => navigate('/sales')}><i className="ti ti-arrow-left" /> Sales</Button>
           <Button variant="primary" size="md" fullWidth onClick={() => {
             setSaved(null);
-            setItems(firstStock ? [{ stockId: firstStock.id, name: firstStock.name, qty: 1, price: firstStock.sellPrice }] : [{ stockId: '', name: '', qty: 1, price: 0 }]);
+            setItems(firstStock ? [{ stockId: firstStock.id, name: firstStock.name, qty: '', price: firstStock.sellPrice }] : [{ stockId: '', name: '', qty: '', price: 0 }]);
             setCust(''); setDisc(0);
           }}><i className="ti ti-plus" /> New sale</Button>
         </div>
@@ -209,8 +216,8 @@ export default function NewSalePage() {
       <Section title="Items sold">
         <div className={styles.itemColHeads}>
           <span style={{ flex: 2 }}>Stock item</span>
-          <span style={{ width: 64, textAlign: 'center' }}>₹ Price</span>
-          <span style={{ width: 44, textAlign: 'center' }}>Qty</span>
+          <span style={{ width: 70, textAlign: 'center' }}>₹ Price ✎</span>
+          <span style={{ width: 50, textAlign: 'center' }}>Qty</span>
           <span style={{ minWidth: 60, textAlign: 'right' }}>Amount</span>
           <span style={{ width: 28 }}></span>
         </div>

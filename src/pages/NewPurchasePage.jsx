@@ -41,7 +41,7 @@ export default function NewPurchasePage() {
     // identity – user fills these
     name: '', category: 'T-Shirt', gender: 'Men', fabric: '', sku: '',
     selSizes: [],
-    qty: 50, lowAlert: 10,
+    qty: '', lowAlert: '',
     buyPrice: '', sellPrice: '',
     // link to existing stock (if found)
     stockId: '',  // filled automatically when name matches existing stock
@@ -94,6 +94,7 @@ export default function NewPurchasePage() {
     if (!invNo)  errs.invNo  = 'Enter invoice number';
     if (items.length === 0) errs.items = 'Add at least one item';
     if (items.some(it => !it.name.trim())) errs.items = 'Enter name for each item';
+    if (items.some(it => !(Number(it.qty) > 0))) errs.items = 'Enter quantity for each item';
     if (items.some(it => !it.sellPrice))   errs.items = 'Enter selling price for each item';
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
@@ -103,7 +104,7 @@ export default function NewPurchasePage() {
       name:      it.name.trim(),
       stockId:   it.stockId || null,
       isNew:     it.isNew,
-      qty:       Number(it.qty),
+      qty:       Number(it.qty) || 0,
       rate:      Number(it.buyPrice) || 0,   // purchase price
       sellPrice: Number(it.sellPrice) || 0,
       // stock fields (used when isNew=true or updating existing)
@@ -251,10 +252,20 @@ export default function NewPurchasePage() {
               {/* Qty + prices */}
               <div className={styles.frow}>
                 <Field label="Qty purchased *">
-                  <Input type="number" min="1" value={it.qty} onChange={e => changeItem(i, { qty: Math.max(1, parseInt(e.target.value) || 1) })} />
+                  <Input
+                    type="number" min="1"
+                    placeholder="e.g. 50"
+                    value={it.qty}
+                    onChange={e => changeItem(i, { qty: e.target.value })}
+                  />
                 </Field>
                 <Field label="Low stock alert">
-                  <Input type="number" min="0" value={it.lowAlert} onChange={e => changeItem(i, { lowAlert: Number(e.target.value) || 10 })} />
+                  <Input
+                    type="number" min="0"
+                    placeholder="e.g. 10"
+                    value={it.lowAlert}
+                    onChange={e => changeItem(i, { lowAlert: e.target.value })}
+                  />
                 </Field>
               </div>
               <div className={styles.frow}>

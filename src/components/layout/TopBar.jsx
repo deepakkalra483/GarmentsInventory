@@ -29,7 +29,7 @@ export default function TopBar() {
     else if (parts[1] === 'sales' && parts[2] && parts[3] === 'edit')   meta = { title: 'Edit Bill', sub: '#'+parts[2], back: `/sales/${parts[2]}` };
     else if (parts[1] === 'sales' && parts[2])   meta = { title: 'Bill #'+parts[2], sub: 'Invoice detail', back: '/sales' };
     else if (parts[1] === 'admin' && parts[2] === 'permissions') meta = { title: 'Permissions', sub: '', back: '/admin' };
-    else meta = { title: 'Mani Garments', sub: '' };
+    else meta = { title: 'Fashion Palace', sub: '' };
   }
 
   return (

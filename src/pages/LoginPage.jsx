@@ -36,7 +36,7 @@ export default function LoginPage() {
           <div className={styles.logoBox}>
             <i className="ti ti-shirt" style={{ fontSize: 30, color: 'var(--accent)' }} />
           </div>
-          <div className={styles.logoTitle}>Mani Garments</div>
+          <div className={styles.logoTitle}>Fashion Palace</div>
           <div className={styles.logoSub}>Business Management App</div>
         </div>
 
